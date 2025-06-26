@@ -43,8 +43,8 @@ def cargar_respuestas():
 
 # Credenciales de Spotify
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-    client_id=os.environ.get(""),
-    client_secret=os.environ.get("")))
+    client_id=os.environ.get("SPOTIFY_CLIENT_ID"),
+    client_secret=os.environ.get("SPOTIFY_CLIENT_SECRET")))
 
 # Cola de canciones por servidor
 queue = {}
@@ -126,7 +126,7 @@ def get_guild_queue(guild_id):
 @bot.command(name="play")
 async def play(ctx, *, search: str):
     if not ctx.author.voice:
-        return await ctx.send("❌ Debes estar en un canal de voz.")
+        return await ctx.send("❌ ¿Donde estas? no te veo en ninguna sala... no quiero buscarte me da flojera, mejor conectare y te sigo :)")
 
     channel = ctx.author.voice.channel
     player: wavelink.Player = ctx.voice_client or await channel.connect(
@@ -166,7 +166,7 @@ async def play(ctx, *, search: str):
             "❌ Hubo un error al obtener las canciones de Spotify. que basura de plataforma")
 
     if not tracks_to_play:
-        return await ctx.send("❌ No se encontraron pistas.")
+        return await ctx.send("❌ No se encontraron pistas :/")
 
     # Reproducir o añadir a la cola
     for i, term in enumerate(tracks_to_play):
