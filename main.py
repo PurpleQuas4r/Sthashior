@@ -43,8 +43,8 @@ def cargar_respuestas():
 
 # Credenciales de Spotify
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-    client_id=os.environ.get("SPOTIFY_CLIENT_ID"),
-    client_secret=os.environ.get("SPOTIFY_CLIENT_SECRET")))
+    client_id=os.environ.get(""),
+    client_secret=os.environ.get("")))
 
 # Cola de canciones por servidor
 queue = {}
@@ -185,7 +185,6 @@ async def play(ctx, *, search: str):
             await ctx.send(f"➕ Añadido a la cola: **{track.title}**")
 
 
-# Comando: #skip
 @bot.command()
 async def skip(ctx):
     player: wavelink.Player = ctx.voice_client
@@ -194,14 +193,21 @@ async def skip(ctx):
     if not player.playing:
         return await ctx.send("⏸️ No hay nada reproduciéndose.")
 
-    await ctx.send("⏭️ Saltando canción...")
-    await player.skip()
+    try:
+        await player.skip()
+        await ctx.send("⏭️ Saltando canción...")
+    except Exception as e:
+        print(f"❌ Error al saltar canción: {e}")
+        await ctx.send("❌ Hubo un problema al intentar saltar la canción. Soy una Loser °n°)/")
 
 
 # Evento al terminar una canción
 @bot.event
 async def on_wavelink_track_end(payload: wavelink.TrackEndEventPayload):
     player = payload.player
+    if not player or not player.is_connected:
+        return
+
     if not player.queue.is_empty:
         next_track = player.queue.get()
         await player.play(next_track)
@@ -478,6 +484,7 @@ async def connect_wavelink():
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
     await connect_wavelink()
+    bot.loop.create_task(monitorear_lavalink())
 
 # Ejecutar el bot
 bot.run(TOKEN)
