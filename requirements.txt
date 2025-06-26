@@ -1,0 +1,11 @@
+aiohappyeyeballs==2.6.1
+backoff==1.11.1
+certifi==2025.6.15
+charset-normalizer==3.4.2
+propcache==0.3.2
+redis==6.2.0
+requests==2.32.4
+spotify==0.10.2
+spotipy==2.25.1
+urllib3==2.5.0
+wavelink==3.4.1
