@@ -163,7 +163,7 @@ async def play(ctx, *, search: str):
 
     except Exception:
         return await ctx.send(
-            "❌ Hubo un error al obtener las canciones de Spotify.")
+            "❌ Hubo un error al obtener las canciones de Spotify. que basura de plataforma")
 
     if not tracks_to_play:
         return await ctx.send("❌ No se encontraron pistas.")
@@ -208,9 +208,11 @@ async def on_wavelink_track_end(payload: wavelink.TrackEndEventPayload):
     if not player or not player.is_connected:
         return
 
-    if not player.queue.is_empty:
+    # 🔒 Verificación segura
+    if hasattr(player, "queue") and player.queue and not player.queue.is_empty:
         next_track = player.queue.get()
         await player.play(next_track)
+
 
 
 # Comando: #cola
@@ -246,7 +248,7 @@ async def leave(ctx):
         return await ctx.send("❌ No estoy conectado a ningún canal de voz.")
 
     await player.disconnect()
-    await ctx.send("👋 Me he desconectado del canal de voz.")
+    await ctx.send("👋 Bueno... se bien cuando no soy deseada ( ｡ •` ⤙´• ｡)")
 
 
 # Comando: #letra
@@ -478,8 +480,7 @@ async def connect_wavelink():
     except Exception as e:
         print(f"❌ Error conectando a Wavelink: {e}")
 
-
-
+# ON_READY
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
