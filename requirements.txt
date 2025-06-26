@@ -9,3 +9,4 @@ spotify==0.10.2
 spotipy==2.25.1
 urllib3==2.5.0
 wavelink==3.4.1
+flask==3.0.3
