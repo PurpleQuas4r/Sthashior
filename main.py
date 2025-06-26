@@ -263,8 +263,6 @@ async def lyrics(ctx):
     if not player or not player.current:
         return await ctx.send("❌ No hay ninguna canción reproduciéndose.")
 
-    import re
-
     full_title = player.current.title
 
     parts = full_title.split(" - ")
@@ -315,14 +313,14 @@ async def debug_player(ctx):
 
 # COMANDO DATO RANDOM
 @bot.command(name='datorandom')
-@commands.cooldown(1, 45, commands.BucketType.user)  # ⏳ Cooldown de 45 segundos
+@commands.cooldown(1, 45, commands.BucketType.user)  # Cooldown de 45 segundos
 async def datorandom(ctx):
     global datos_mostrados_recientemente, usos_diarios_datorandom
 
     usuario_id = ctx.author.id
 
-    if usos_diarios_datorandom[usuario_id] >= 5:
-        return await ctx.send("🌸 Ya usaste este comando 5 veces hoy. Vuelve mañana... o espérate a que sea otro día... en serio, ¿tanto te gustan los datos randoms? (¬‿¬)")
+    if usos_diarios_datorandom[usuario_id] >= 10:
+        return await ctx.send("🌸 Ya usaste este comando 10 veces hoy. Vuelve mañana... o no se buscate una pega o algo... en serio, ¿tanto te gustan los datos randoms? (¬‿¬) [Y EL PICO YIAAA]")
 
     try:
         with open('data.json', 'r', encoding='utf-8') as f:
@@ -381,7 +379,7 @@ async def resetear_usos_diarios():
 
 
 
-# COMANDO SAY - Solo para un usuario específico
+# COMANDO SAY
 @bot.command(name='say')
 async def say(ctx, *, message: str):
 
@@ -396,7 +394,7 @@ async def say(ctx, *, message: str):
     await sent_message.delete()
 
 
-# Checkear constante estado
+# Checkear constante estado [Creo que esta wea funciona poco y nada]
 async def monitorear_lavalink():
     await bot.wait_until_ready()
 
