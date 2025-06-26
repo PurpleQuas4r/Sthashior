@@ -14,6 +14,10 @@ from spotipy.oauth2 import SpotifyClientCredentials
 import os
 from flask import Flask
 from threading import Thread
+from datetime import datetime, timedelta
+
+usos_diarios_datorandom = defaultdict(int)  # Registro por usuario
+
 
 TOKEN = os.environ.get("TOKEN")
 
@@ -311,9 +315,14 @@ async def debug_player(ctx):
 
 # COMANDO DATO RANDOM
 @bot.command(name='datorandom')
-@commands.cooldown(1, 45, commands.BucketType.user)
+@commands.cooldown(1, 45, commands.BucketType.user)  # ⏳ Cooldown de 45 segundos
 async def datorandom(ctx):
-    global datos_mostrados_recientemente
+    global datos_mostrados_recientemente, usos_diarios_datorandom
+
+    usuario_id = ctx.author.id
+
+    if usos_diarios_datorandom[usuario_id] >= 5:
+        return await ctx.send("🌸 Ya usaste este comando 5 veces hoy. Vuelve mañana... o espérate a que sea otro día... en serio, ¿tanto te gustan los datos randoms? (¬‿¬)")
 
     try:
         with open('data.json', 'r', encoding='utf-8') as f:
@@ -321,14 +330,9 @@ async def datorandom(ctx):
             datos = data['datos']
 
         if datos:
-            # Filter out recently shown data
-            datos_no_recientes = [
-                d for d in datos
-                if d['id'] not in datos_mostrados_recientemente
-            ]
+            datos_no_recientes = [d for d in datos if d['id'] not in datos_mostrados_recientemente]
 
             if not datos_no_recientes:
-                # Reset recently shown data if all are shown
                 datos_mostrados_recientemente.clear()
                 datos_no_recientes = datos
 
@@ -336,38 +340,45 @@ async def datorandom(ctx):
             dato_id = dato_random['id']
             dato_texto = dato_random['texto']
 
-            # Add the data to the recently shown list with current time
             datos_mostrados_recientemente[dato_id] = time.time()
+            usos_diarios_datorandom[usuario_id] += 1  # 📈 Registrar uso
 
-            datorandom_message = await ctx.send(
-                f"🌸 Dato Random: {dato_texto} 🌸")
+            datorandom_message = await ctx.send(f"🌸 Dato Random: {dato_texto} 🌸")
 
-            # Clean up data shown more than an hour ago
+            # Limpieza de datos viejos (máximo 24 hrs)
             datos_mostrados_recientemente = {
-                id: timestamp
-                for id, timestamp in datos_mostrados_recientemente.items()
+                id: timestamp for id, timestamp in datos_mostrados_recientemente.items()
                 if time.time() - timestamp < 86400
             }
         else:
-            datorandom_message = await ctx.send(
-                "Se acabaron todos los datos randoms... como es eso posible... son unos animales asquerosos (｡•ˇ‸ˇ•｡)"
-            )
+            datorandom_message = await ctx.send("Se acabaron todos los datos randoms... qué vergüenza... tengo que alimentar mi base de datos (｡•́︿•̀｡)")
     except Exception as e:
         datorandom_message = await ctx.send(f'Ocurrió un error: {str(e)}')
-        print(f'Error al obtener el dato random... perdonenme (｡>﹏<)')
+        print(f'Error al obtener el dato random: {e}')
 
-    # Delete the message after 1 minute
     await asyncio.sleep(180)
     await datorandom_message.delete()
 
-
-    # Error handler for datorandom cooldown
+# Manejo de errores
 @datorandom.error
 async def datorandom_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
-        await ctx.send(
-            f"🌸 Espera un poco, un poquito maaaas!!!... Puedes usar el comando en {error.retry_after:.0f} segundos. No seas ansioso(a) (｡•ˇ‸ˇ•｡)"
-        )
+        await ctx.send(f"🌸 Espera un poquito, puedes usar el comando nuevamente en {error.retry_after:.0f} segundos (´｡• ᵕ •｡`) 🌸")
+
+
+# RESETEO USOS DIARIOS #DATORANDOM
+async def resetear_usos_diarios():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        ahora = datetime.now()
+        siguiente_reset = (ahora + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        segundos_hasta_reset = (siguiente_reset - ahora).total_seconds()
+
+        await asyncio.sleep(segundos_hasta_reset)
+
+        usos_diarios_datorandom.clear()
+        print("🔁 Usos diarios de #datorandom reiniciados.")
+
 
 
 # COMANDO SAY - Solo para un usuario específico
@@ -486,6 +497,8 @@ async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
     await connect_wavelink()
     bot.loop.create_task(monitorear_lavalink())
+    bot.loop.create_task(resetear_usos_diarios())
+
 
 # Ejecutar el bot
 bot.run(TOKEN)
