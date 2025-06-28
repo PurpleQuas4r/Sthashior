@@ -321,15 +321,16 @@ class DemasiadosUsosError(CommandError):
 @commands.cooldown(1, 45, commands.BucketType.user)  # Cooldown de 45 segundos
 async def datorandom(ctx):
     global datos_mostrados_recientemente, usos_diarios_datorandom
-    
+
     # Verificar si el comando se está usando en el canal prohibido
     if ctx.channel.id == 1076984679787397242:
         return await ctx.send("🌸 Este comando no puede usarse en este canal... Ve al canal de ⋆｡°✩🌸Sthashior🌸｡°✩⋆ 🌸")
     
+    # Definir al usuario
+    usuario_id = ctx.author.id
+
     if usos_diarios_datorandom[usuario_id] >= 10:
         raise DemasiadosUsosError()
-
-    usuario_id = ctx.author.id
 
     try:
         with open('data.json', 'r', encoding='utf-8') as f:
