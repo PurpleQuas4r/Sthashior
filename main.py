@@ -6,7 +6,6 @@ import asyncio
 import re
 from collections import defaultdict, deque
 from discord.ext import commands
-from discord.ext.commands import CommandError
 import wavelink
 import aiohttp
 import urllib.parse
@@ -18,8 +17,7 @@ from threading import Thread
 from datetime import datetime, timedelta
 
 usos_diarios_datorandom = defaultdict(int)  # Registro por usuario
-intentos_en_cooldown = defaultdict(int)
-penalizaciones_por_usuario = defaultdict(int)
+
 
 TOKEN = os.environ.get("TOKEN")
 
@@ -118,22 +116,7 @@ async def on_message(message):
                 '🌸 Se acabaron las respuestas inteligentes por ahora... te salvaste... de momento... (￣︿￣)'
             )
 
-    if (
-        not any(re.search(patron, message.content, re.IGNORECASE) for patron in patrones)
-        and message.content.startswith(bot.command_prefix)
-    ):
-        ctx = await bot.get_context(message)
-
-        # Verificar si el comando tiene cooldown y está en espera
-        if ctx.command:
-            bucket = ctx.command._buckets.get_bucket(ctx.message)
-            retry_after = bucket.update_rate_limit()
-            if retry_after:
-                return  # Evita procesar el comando si está en cooldown
-
-        if ctx.valid:
-            await bot.process_commands(message)
-
+    await bot.process_commands(message)
 
 
 # Función auxiliar para obtener o crear la cola de un servidor
@@ -327,25 +310,17 @@ async def debug_player(ctx):
         return await ctx.send("⛔ Player activo, pero no hay canción actual.")
     await ctx.send(f"✅ Player activo y reproduciendo: {player.current.title}")
 
-# Clase para... algo supongo (esto es idea de chatgpt)
-class DemasiadosUsosError(CommandError):
-    pass
 
-# COMANDO DATORANDOM
+# COMANDO DATO RANDOM
 @bot.command(name='datorandom')
 @commands.cooldown(1, 45, commands.BucketType.user)  # Cooldown de 45 segundos
 async def datorandom(ctx):
     global datos_mostrados_recientemente, usos_diarios_datorandom
 
-    # Verificar si el comando se está usando en el canal prohibido
-    if ctx.channel.id == 1076984679787397242:
-        return await ctx.send("🌸 Este comando no puede usarse en este canal... Ve al canal de ⋆｡°✩🌸Sthashior🌸｡°✩⋆ 🌸")
-    
-    # Definir al usuario
     usuario_id = ctx.author.id
 
     if usos_diarios_datorandom[usuario_id] >= 10:
-        raise DemasiadosUsosError()
+        return await ctx.send("🌸 Ya usaste este comando 10 veces hoy. Vuelve mañana... o no se buscate una pega o algo... en serio, ¿tanto te gustan los datos randoms? (¬‿¬) [Y EL PICO YIAAA]")
 
     try:
         with open('data.json', 'r', encoding='utf-8') as f:
@@ -364,14 +339,7 @@ async def datorandom(ctx):
             dato_texto = dato_random['texto']
 
             datos_mostrados_recientemente[dato_id] = time.time()
-            usos_diarios_datorandom[usuario_id] += 1
-
-            # Si el usuario tenía penalización, esperar antes de ejecutar
-            penalizacion = penalizaciones_por_usuario.get(usuario_id, 0)
-            if penalizacion > 0:
-                await ctx.send(f"⏳ Espera {penalizacion} segundos adicionales por castigo... eso pasa por desesperado (¬‿¬)")
-                await asyncio.sleep(penalizacion)
-                penalizaciones_por_usuario[usuario_id] = 0  # Reiniciar penalización
+            usos_diarios_datorandom[usuario_id] += 1  # 📈 Registrar uso
 
             datorandom_message = await ctx.send(f"🌸 Dato Random: {dato_texto} 🌸")
 
@@ -389,38 +357,11 @@ async def datorandom(ctx):
     await asyncio.sleep(180)
     await datorandom_message.delete()
 
+# Manejo de errores
 @datorandom.error
 async def datorandom_error(ctx, error):
-    print("🔸 Error de cooldown ejecutado")
-    usuario_id = ctx.author.id
-
     if isinstance(error, commands.CommandOnCooldown):
         await ctx.send(f"🌸 Espera un poquito, puedes usar el comando nuevamente en {error.retry_after:.0f} segundos (´｡• ᵕ •｡`) 🌸")
-        return
-
-    elif isinstance(error, DemasiadosUsosError):
-        intentos_en_cooldown[usuario_id] += 1
-
-        if intentos_en_cooldown[usuario_id] >= 3:
-            penalizaciones_por_usuario[usuario_id] += 60
-            intentos_en_cooldown[usuario_id] = 0
-            await ctx.send("🌸 Por intentar tanto, se te añadió 1 minuto extra de castigo. Anda a jugar con tierra mejor (¬_¬ )")
-            return
-
-        try:
-            with open('respSarcasticas.json', 'r', encoding='utf-8') as f:
-                respuestas_data = json.load(f)
-                respuestas = respuestas_data.get("respuestas", [])
-                if respuestas:
-                    respuesta_random = random.choice(respuestas)
-                    await ctx.send(respuesta_random['texto'])
-                    return
-        except Exception as e:
-            print(f"❌ Error al cargar respuestas sarcásticas: {e}")
-
-        await ctx.send("🌸 Ya usaste este comando 10 veces hoy. Anda a hacer algo productivo... o no sé, dormir.")
-
-
 
 
 # RESETEO USOS DIARIOS #DATORANDOM
@@ -434,8 +375,6 @@ async def resetear_usos_diarios():
         await asyncio.sleep(segundos_hasta_reset)
 
         usos_diarios_datorandom.clear()
-        intentos_en_cooldown.clear()
-        penalizaciones_por_usuario.clear()
         print("🔁 Usos diarios de #datorandom reiniciados.")
 
 
