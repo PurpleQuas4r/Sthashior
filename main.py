@@ -118,8 +118,13 @@ async def on_message(message):
                 '🌸 Se acabaron las respuestas inteligentes por ahora... te salvaste... de momento... (￣︿￣)'
             )
 
-    if not any(re.search(patron, message.content, re.IGNORECASE) for patron in patrones):
-        await bot.process_commands(message)
+    if (
+        not any(re.search(patron, message.content, re.IGNORECASE) for patron in patrones)
+        and message.content.startswith(bot.command_prefix)
+    ):
+        ctx = await bot.get_context(message)
+        if ctx.valid:
+            await bot.process_commands(message)
 
 
 
@@ -322,6 +327,7 @@ class DemasiadosUsosError(CommandError):
 @bot.command(name='datorandom')
 @commands.cooldown(1, 45, commands.BucketType.user)  # Cooldown de 45 segundos
 async def datorandom(ctx):
+    print("🔹 Comando ejecutado")
     global datos_mostrados_recientemente, usos_diarios_datorandom
 
     # Verificar si el comando se está usando en el canal prohibido
@@ -378,6 +384,7 @@ async def datorandom(ctx):
 
 @datorandom.error
 async def datorandom_error(ctx, error):
+    print("🔸 Error de cooldown ejecutado")
     usuario_id = ctx.author.id
 
     if isinstance(error, commands.CommandOnCooldown):
