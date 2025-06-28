@@ -335,7 +335,6 @@ class DemasiadosUsosError(CommandError):
 @bot.command(name='datorandom')
 @commands.cooldown(1, 45, commands.BucketType.user)  # Cooldown de 45 segundos
 async def datorandom(ctx):
-    await ctx.send("🧪 Ejecutado correctamente")
     global datos_mostrados_recientemente, usos_diarios_datorandom
 
     # Verificar si el comando se está usando en el canal prohibido
