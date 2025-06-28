@@ -118,7 +118,9 @@ async def on_message(message):
                 '🌸 Se acabaron las respuestas inteligentes por ahora... te salvaste... de momento... (￣︿￣)'
             )
 
-    await bot.process_commands(message)
+    if not any(re.search(patron, message.content, re.IGNORECASE) for patron in patrones):
+        await bot.process_commands(message)
+
 
 
 # Función auxiliar para obtener o crear la cola de un servidor
