@@ -389,11 +389,36 @@ async def datorandom(ctx):
     await asyncio.sleep(180)
     await datorandom_message.delete()
 
-# Manejo de errores
 @datorandom.error
 async def datorandom_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
+        usuario_id = ctx.author.id
+
+        # Si ya superó el límite diario
+        if usos_diarios_datorandom[usuario_id] >= 10:
+            intentos_en_cooldown[usuario_id] += 1
+
+            if intentos_en_cooldown[usuario_id] >= 3:
+                penalizaciones_por_usuario[usuario_id] += 60  # Agrega 1 minuto extra
+                intentos_en_cooldown[usuario_id] = 0
+                await ctx.send("🌸 Por intentar tanto, se te añadió 1 minuto extra de castigo. Anda a jugar con tierra mejor (¬_¬ )")
+
+            try:
+                with open('respSarcasticas.json', 'r', encoding='utf-8') as f:
+                    respuestas_data = json.load(f)
+                    respuestas = respuestas_data.get("respuestas", [])
+                    if respuestas:
+                        respuesta_random = random.choice(respuestas)
+                        return await ctx.send(respuesta_random['texto'])
+            except Exception as e:
+                print(f"❌ Error al cargar respuestas sarcásticas: {e}")
+
+            # Fallback si falla el archivo
+            return await ctx.send("🌸 Ya usaste este comando 10 veces hoy. Anda a hacer algo productivo... o no sé, dormir.")
+        
+        # Si solo está en cooldown de 45s (normal)
         await ctx.send(f"🌸 Espera un poquito, puedes usar el comando nuevamente en {error.retry_after:.0f} segundos (´｡• ᵕ •｡`) 🌸")
+
 
 
 # RESETEO USOS DIARIOS #DATORANDOM
