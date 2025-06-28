@@ -6,6 +6,7 @@ import asyncio
 import re
 from collections import defaultdict, deque
 from discord.ext import commands
+from discord.ext.commands import CommandError
 import wavelink
 import aiohttp
 import urllib.parse
@@ -311,6 +312,9 @@ async def debug_player(ctx):
         return await ctx.send("⛔ Player activo, pero no hay canción actual.")
     await ctx.send(f"✅ Player activo y reproduciendo: {player.current.title}")
 
+# Clase para... algo supongo (esto es idea de chatgpt)
+class DemasiadosUsosError(CommandError):
+    pass
 
 # COMANDO DATORANDOM
 @bot.command(name='datorandom')
@@ -321,31 +325,11 @@ async def datorandom(ctx):
     # Verificar si el comando se está usando en el canal prohibido
     if ctx.channel.id == 1076984679787397242:
         return await ctx.send("🌸 Este comando no puede usarse en este canal... Ve al canal de ⋆｡°✩🌸Sthashior🌸｡°✩⋆ 🌸")
-
+    
+    if usos_diarios_datorandom[usuario_id] >= 10:
+        raise DemasiadosUsosError()
 
     usuario_id = ctx.author.id
-
-    if usos_diarios_datorandom[usuario_id] >= 10:
-        intentos_en_cooldown[usuario_id] += 1
-
-        # Si llegó a 3 intentos, aplicamos penalización
-        if intentos_en_cooldown[usuario_id] >= 3:
-            penalizaciones_por_usuario[usuario_id] += 60  # 1 minuto extra
-            intentos_en_cooldown[usuario_id] = 0  # Reiniciamos el contador
-            await ctx.send("🌸 Por intentar tanto, se te añadió 1 minuto extra de castigo. Asi que vamos viendo tutoriales o no se po... viendo el temita del Curriculum (¬_¬ )")
-
-        try:
-            with open('respSarcasticas.json', 'r', encoding='utf-8') as f:
-                respuestas_data = json.load(f)
-                respuestas = respuestas_data.get("respuestas", [])
-                if respuestas:
-                    respuesta_random = random.choice(respuestas)
-                    return await ctx.send(respuesta_random['texto'])
-        except Exception as e:
-            print(f"❌❌❌ Error al cargar respuestas sarcásticas XoX)/: {e} ❌❌❌")
-
-        # Respuesta generica en caso que coso...
-        return await ctx.send("🌸 Ya usaste este comando 10 veces hoy. Vuelve mañana... o no se buscate una pega o algo... en serio, ¿tanto te gustan los datos randoms? (¬‿¬)")
 
     try:
         with open('data.json', 'r', encoding='utf-8') as f:
@@ -391,36 +375,34 @@ async def datorandom(ctx):
 
 @datorandom.error
 async def datorandom_error(ctx, error):
+    usuario_id = ctx.author.id
+
     if isinstance(error, commands.CommandOnCooldown):
-        usuario_id = ctx.author.id
-
-        if usos_diarios_datorandom[usuario_id] >= 10:
-            intentos_en_cooldown[usuario_id] += 1
-
-            if intentos_en_cooldown[usuario_id] >= 3:
-                penalizaciones_por_usuario[usuario_id] += 60  # Agrega 1 minuto extra
-                intentos_en_cooldown[usuario_id] = 0
-                await ctx.send("🌸 Por intentar tanto, se te añadió 1 minuto extra de castigo. Anda a jugar con tierra mejor (¬_¬ )")
-                return
-
-            try:
-                with open('respSarcasticas.json', 'r', encoding='utf-8') as f:
-                    respuestas_data = json.load(f)
-                    respuestas = respuestas_data.get("respuestas", [])
-                    if respuestas:
-                        respuesta_random = random.choice(respuestas)
-                        await ctx.send(respuesta_random['texto'])
-                        return
-            except Exception as e:
-                print(f"❌ Error al cargar respuestas sarcásticas: {e}")
-
-            # Fallback si falla el archivo
-            await ctx.send("🌸 Ya usaste este comando 10 veces hoy. Anda a hacer algo productivo... o no sé, dormir.")
-            return
-
-        # Si solo está en cooldown de 45s (uso normal)
         await ctx.send(f"🌸 Espera un poquito, puedes usar el comando nuevamente en {error.retry_after:.0f} segundos (´｡• ᵕ •｡`) 🌸")
         return
+
+    elif isinstance(error, DemasiadosUsosError):
+        intentos_en_cooldown[usuario_id] += 1
+
+        if intentos_en_cooldown[usuario_id] >= 3:
+            penalizaciones_por_usuario[usuario_id] += 60
+            intentos_en_cooldown[usuario_id] = 0
+            await ctx.send("🌸 Por intentar tanto, se te añadió 1 minuto extra de castigo. Anda a jugar con tierra mejor (¬_¬ )")
+            return
+
+        try:
+            with open('respSarcasticas.json', 'r', encoding='utf-8') as f:
+                respuestas_data = json.load(f)
+                respuestas = respuestas_data.get("respuestas", [])
+                if respuestas:
+                    respuesta_random = random.choice(respuestas)
+                    await ctx.send(respuesta_random['texto'])
+                    return
+        except Exception as e:
+            print(f"❌ Error al cargar respuestas sarcásticas: {e}")
+
+        await ctx.send("🌸 Ya usaste este comando 10 veces hoy. Anda a hacer algo productivo... o no sé, dormir.")
+
 
 
 
