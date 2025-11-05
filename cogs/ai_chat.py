@@ -11,8 +11,9 @@ class AIChat(commands.Cog):
         self.bot = bot
         self.hf_token = os.environ.get("HUGGINGFACE_TOKEN")
         # Usando IBM Granite - modelo pequeño y reciente (actualizado oct 2024)
-        # NUEVA URL de Hugging Face (migración desde api-inference)
-        self.api_url = "https://router.huggingface.co/hf-inference/ibm-granite/granite-4.0-h-350m"
+        # Formato de la nueva API de Hugging Face
+        self.model_id = "ibm-granite/granite-4.0-h-350m"
+        self.api_url = f"https://api-inference.huggingface.co/models/{self.model_id}"
         # Historial de conversaciones por usuario (máximo 3 mensajes)
         self.conversation_history: Dict[int, List[str]] = {}
         self.max_history = 3
@@ -71,7 +72,37 @@ class AIChat(commands.Cog):
                     if response.status == 410:
                         error_detail = await response.text()
                         print(f"[DEBUG] 410 Error: {error_detail}")
-                        return f"❌ Modelo no disponible (410). Detalle: {error_detail[:100]}"
+                        # Intentar con la URL alternativa si la antigua falla
+                        alt_url = f"https://huggingface.co/api/inference/models/{self.model_id}"
+                        print(f"[DEBUG] Intentando URL alternativa: {alt_url}")
+                        async with session.post(alt_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=45)) as alt_response:
+                            if alt_response.status == 200:
+                                result = await alt_response.json()
+                                print(f"[DEBUG] ¡Éxito con URL alternativa!")
+                                # Procesar respuesta (código duplicado por simplicidad)
+                                response_text = ""
+                                if isinstance(result, list) and len(result) > 0:
+                                    if isinstance(result[0], dict):
+                                        response_text = result[0].get("generated_text", "").strip()
+                                    else:
+                                        response_text = str(result[0]).strip()
+                                elif isinstance(result, dict):
+                                    response_text = result.get("generated_text", "").strip()
+                                
+                                if text in response_text:
+                                    response_text = response_text.replace(text, "").strip()
+                                
+                                if response_text:
+                                    if user_id not in self.conversation_history:
+                                        self.conversation_history[user_id] = []
+                                    self.conversation_history[user_id].append(text)
+                                    self.conversation_history[user_id].append(response_text)
+                                    if len(self.conversation_history[user_id]) > self.max_history * 2:
+                                        self.conversation_history[user_id] = self.conversation_history[user_id][-(self.max_history * 2):]
+                                    return response_text
+                            else:
+                                print(f"[DEBUG] URL alternativa también falló: {alt_response.status}")
+                        return f"❌ API de Hugging Face no disponible. La API antigua fue deprecada y la nueva aún no está accesible."
                     
                     if response.status != 200:
                         error_text = await response.text()
