@@ -10,8 +10,8 @@ class AIChat(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.hf_token = os.environ.get("HUGGINGFACE_TOKEN")
-        # Usando TinyLlama - modelo pequeño disponible en API gratuita
-        self.api_url = "https://api-inference.huggingface.co/models/TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        # Usando IBM Granite - modelo pequeño y reciente (actualizado oct 2024)
+        self.api_url = "https://api-inference.huggingface.co/models/ibm-granite/granite-4.0-h-350m"
         # Historial de conversaciones por usuario (máximo 3 mensajes)
         self.conversation_history: Dict[int, List[str]] = {}
         self.max_history = 3
@@ -21,7 +21,7 @@ class AIChat(commands.Cog):
         self.allowed_channel_id = 1266262036250103970
 
     async def _query_huggingface(self, text: str, user_id: int) -> str:
-        """Consulta la API de Hugging Face con el modelo TinyLlama"""
+        """Consulta la API de Hugging Face con el modelo IBM Granite"""
         if not self.hf_token:
             return "❌ Token de Hugging Face no configurado."
         
@@ -47,23 +47,34 @@ class AIChat(commands.Cog):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(self.api_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=45)) as response:
+                    # Logs de depuración
+                    print(f"[DEBUG] Status Code: {response.status}")
+                    print(f"[DEBUG] Headers: {dict(response.headers)}")
+                    
                     if response.status == 503:
-                        # Modelo cargándose
+                        error_detail = await response.text()
+                        print(f"[DEBUG] 503 Error: {error_detail}")
                         return "⏳ El modelo se está cargando, intenta de nuevo en unos segundos..."
                     
                     if response.status == 401:
+                        error_detail = await response.text()
+                        print(f"[DEBUG] 401 Error: {error_detail}")
                         return "❌ Token de Hugging Face inválido."
                     
                     if response.status == 410:
-                        return "❌ El modelo no está disponible. Contacta al administrador."
+                        error_detail = await response.text()
+                        print(f"[DEBUG] 410 Error: {error_detail}")
+                        return f"❌ Modelo no disponible (410). Detalle: {error_detail[:100]}"
                     
                     if response.status != 200:
                         error_text = await response.text()
-                        return f"❌ Error al conectar con la IA: {response.status}"
+                        print(f"[DEBUG] Error {response.status}: {error_text}")
+                        return f"❌ Error {response.status}: {error_text[:100]}"
                     
                     result = await response.json()
                     
-                    # TinyLlama retorna una lista con el texto generado
+                    # Granite retorna una lista con el texto generado
+                    print(f"[DEBUG] Response JSON: {result}")
                     response_text = ""
                     if isinstance(result, list) and len(result) > 0:
                         if isinstance(result[0], dict):
@@ -100,7 +111,7 @@ class AIChat(commands.Cog):
 
     @commands.command(name="ia")
     async def ia_chat(self, ctx: commands.Context, *, texto: str = None):
-        """Chatea con la IA usando TinyLlama"""
+        """Chatea con la IA usando IBM Granite"""
         # Verificar que esté en el servidor y canal correcto
         if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
             return
