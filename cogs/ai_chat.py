@@ -159,6 +159,33 @@ class AIChat(commands.Cog):
         else:
             await ctx.send("ℹ️ No tienes historial de conversación.")
 
+    @commands.command(name="ia_clear")
+    async def ia_clear(self, ctx: commands.Context):
+        """Limpia los últimos 50 mensajes del canal de IA (Solo PurpleQuasar)"""
+        # Verificar que sea el usuario autorizado
+        if ctx.author.id != 447296273632985088:
+            await ctx.send("❌ No tienes permiso para usar este comando.")
+            return
+        
+        # Verificar que esté en el canal correcto
+        if ctx.channel.id != self.allowed_channel_id:
+            await ctx.send("❌ Este comando solo funciona en el canal de IA.")
+            return
+        
+        try:
+            # Eliminar los últimos 50 mensajes
+            deleted = await ctx.channel.purge(limit=50)
+            
+            # Enviar mensaje de confirmación (se auto-eliminará en 5 segundos)
+            confirmation = await ctx.send(f"✅ Se eliminaron {len(deleted)} mensajes del canal.")
+            await asyncio.sleep(5)
+            await confirmation.delete()
+            
+        except discord.Forbidden:
+            await ctx.send("❌ No tengo permisos para eliminar mensajes.")
+        except discord.HTTPException as e:
+            await ctx.send(f"❌ Error al eliminar mensajes: {str(e)}")
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AIChat(bot))
