@@ -1,0 +1,23 @@
+# ===================================
+# VARIABLES DE ENTORNO - Sthashior Bot
+# ===================================
+# Copia este archivo como .env y completa los valores
+
+# ===== DISCORD =====
+TOKEN=tu_token_de_discord_aqui
+
+# ===== LAVALINK (Servidor de Audio) =====
+LAVALINK_HOST=lava-v4.ajieblogs.eu.org
+LAVALINK_PORT=80
+LAVALINK_PASSWORD=https://dsc.gg/ajidevserver
+LAVALINK_SECURE=false
+
+# ===== SPOTIFY (Opcional) =====
+SPOTIFY_CLIENT_ID=tu_client_id_de_spotify
+SPOTIFY_CLIENT_SECRET=tu_client_secret_de_spotify
+
+# ===== HUGGING FACE (IA Conversacional) =====
+HUGGINGFACE_TOKEN=tu_token_de_huggingface_aqui
+
+# ===== SERVIDOR HTTP =====
+PORT=3000

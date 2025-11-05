@@ -25,6 +25,28 @@ HELP_MUSICA = (
     "🌸 Disfruta de la música, comparte el ritmo y deja que el bot haga el resto~ (✿◠‿◠)"
 )
 
+HELP_IA = (
+    "🌸 Comandos disponibles — IA Conversacional 🤖\n\n"
+    "Konnichiwa~ (◕‿◕✿)\n"
+    "¡Ahora puedo conversar contigo usando inteligencia artificial!\n\n"
+    "🤖 Comandos de IA\n\n"
+    "🌸 #ia <mensaje> → Chatea conmigo usando IA. Mantengo el contexto de la conversación (｡◕‿◕｡).\n\n"
+    "🌸 #ia_reset → Reinicia el historial de conversación para empezar de nuevo ♻️.\n\n"
+    "💡 Nota: Solo funciona en el canal designado del servidor.\n\n"
+    "🌸 Powered by Microsoft DialoGPT-small ✨"
+)
+
+HELP_GENERAL = (
+    "🌸 Sthashior Bot - Menú de Ayuda 🌸\n\n"
+    "Hola~ (づ｡◕‿‿◕｡)づ\n"
+    "Soy Sthashior, tu bot multifuncional kawaii!\n\n"
+    "📚 Secciones disponibles:\n\n"
+    "🎵 `#help musica` → Comandos de música\n"
+    "🤖 `#help ia` → Comandos de IA conversacional\n"
+    "🎲 `#datorandom` o `#dt` → Dato random del servidor\n\n"
+    "🌸 ¡Disfruta y diviértete! (✿◠‿◠)"
+)
+
 class Help(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -34,7 +56,10 @@ class Help(commands.Cog):
         if seccion and seccion.lower() == "musica":
             await ctx.send(HELP_MUSICA)
             return
-        await ctx.send("Usa `#help musica` para ver los comandos musicales.")
+        if seccion and seccion.lower() == "ia":
+            await ctx.send(HELP_IA)
+            return
+        await ctx.send(HELP_GENERAL)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Help(bot))

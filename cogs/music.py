@@ -32,6 +32,7 @@ class Music(commands.Cog):
         self.loop_mode: dict[int, str] = {}
         self.spotify = None
         self.stop_guard = set()
+        self.empty_channel_tasks: dict[int, asyncio.Task] = {}  # Tareas de desconexión por inactividad
         cid = os.environ.get("SPOTIFY_CLIENT_ID")
         secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
         if spotipy and cid and secret:
@@ -85,6 +86,48 @@ class Music(commands.Cog):
     def _embed(self, title: str, description: str | None = None, color: discord.Color | None = None) -> discord.Embed:
         emb = discord.Embed(title=title, description=description or discord.Embed.Empty, color=color or discord.Color.blurple())
         return emb
+
+    def _cancel_empty_task(self, guild_id: int):
+        """Cancela la tarea de desconexión automática si existe"""
+        if guild_id in self.empty_channel_tasks:
+            self.empty_channel_tasks[guild_id].cancel()
+            del self.empty_channel_tasks[guild_id]
+
+    async def _auto_disconnect_if_empty(self, player: wavelink.Player, guild_id: int):
+        """Desconecta el bot después de 5 minutos si el canal está vacío"""
+        try:
+            await asyncio.sleep(300)  # 5 minutos = 300 segundos
+            # Verificar si el canal sigue vacío
+            if player.channel and len([m for m in player.channel.members if not m.bot]) == 0:
+                if player.queue and not player.queue.is_empty:
+                    player.queue.clear()
+                await player.stop()
+                await player.disconnect()
+                print(f"Bot desconectado automáticamente del servidor {guild_id} por inactividad")
+        except asyncio.CancelledError:
+            # La tarea fue cancelada porque alguien se unió al canal
+            pass
+        finally:
+            if guild_id in self.empty_channel_tasks:
+                del self.empty_channel_tasks[guild_id]
+
+    def _check_empty_channel(self, player: wavelink.Player):
+        """Verifica si el canal está vacío y programa desconexión automática"""
+        if not player or not player.channel:
+            return
+        
+        guild_id = player.guild.id
+        # Contar miembros que no sean bots
+        human_members = [m for m in player.channel.members if not m.bot]
+        
+        if len(human_members) == 0:
+            # Canal vacío, programar desconexión si no existe ya
+            if guild_id not in self.empty_channel_tasks:
+                task = asyncio.create_task(self._auto_disconnect_if_empty(player, guild_id))
+                self.empty_channel_tasks[guild_id] = task
+        else:
+            # Hay gente en el canal, cancelar desconexión automática
+            self._cancel_empty_task(guild_id)
 
     async def _ensure_player_ctx(self, ctx: commands.Context, join: bool = False) -> wavelink.Player | None:
         guild = ctx.guild
@@ -186,6 +229,7 @@ class Music(commands.Cog):
         return []
 
     async def _from_spotify(self, query: str) -> list[str]:
+        MAX_SPOTIFY_TRACKS = 20
         if not self.spotify:
             return [query]
         if "open.spotify.com/track" in query:
@@ -195,12 +239,14 @@ class Music(commands.Cog):
         if "open.spotify.com/album" in query:
             aid = query.split("/")[-1].split("?")[0]
             items = self.spotify.album_tracks(aid)["items"]
+            # Limitar a MAX_SPOTIFY_TRACKS
+            items = items[:MAX_SPOTIFY_TRACKS]
             return [f"{it['name']} {it['artists'][0]['name']}" for it in items]
         if "open.spotify.com/playlist" in query:
             pid = query.split("/")[-1].split("?")[0]
             items = self.spotify.playlist_tracks(pid)["items"]
             out = []
-            for it in items:
+            for it in items[:MAX_SPOTIFY_TRACKS]:  # Limitar a MAX_SPOTIFY_TRACKS
                 tr = it.get("track")
                 if tr:
                     out.append(f"{tr['name']} {tr['artists'][0]['name']}")
@@ -211,6 +257,8 @@ class Music(commands.Cog):
     async def join(self, ctx: commands.Context):
         player = await self._ensure_player_ctx(ctx, join=True)
         if player:
+            # Cancelar desconexión automática al unirse
+            self._cancel_empty_task(ctx.guild.id)
             await ctx.send(f"✅ Conectado a {player.channel.name}")
 
     @commands.command(name="leave")
@@ -219,6 +267,8 @@ class Music(commands.Cog):
         if not player:
             await ctx.send("❌ No estoy en ningún canal.")
             return
+        # Cancelar tarea de desconexión automática
+        self._cancel_empty_task(ctx.guild.id)
         if player.queue and not player.queue.is_empty:
             player.queue.clear()
         await player.stop()
@@ -230,30 +280,57 @@ class Music(commands.Cog):
         player = await self._ensure_player_ctx(ctx, join=True)
         if not player:
             return
+        
+        # Límite de canciones por playlist
+        MAX_PLAYLIST_TRACKS = 20
+        
         queries: list[str]
         if query.startswith("http") and "open.spotify.com" in query:
             queries = await self._from_spotify(query)
         else:
             queries = [query]
+        
         queued = 0
         first_title = None
         added_titles: list[str] = []
+        is_playlist = False
+        
         for i, q in enumerate(queries):
             tracks = await self._search_tracks(q)
             if not tracks:
                 continue
-            if not player.playing and i == 0:
-                await player.play(tracks[0])
-                first_title = tracks[0].title
-            else:
-                await player.queue.put_wait(tracks[0])
-                queued += 1
-                added_titles.append(tracks[0].title)
+            
+            # Detectar si es una playlist (más de 1 track)
+            if len(tracks) > 1:
+                is_playlist = True
+                # Limitar a MAX_PLAYLIST_TRACKS
+                tracks = tracks[:MAX_PLAYLIST_TRACKS]
+            
+            # Procesar todas las tracks encontradas
+            for track_idx, track in enumerate(tracks):
+                # La primera canción se reproduce directamente si no hay nada sonando
+                if not player.playing and i == 0 and track_idx == 0:
+                    await player.play(track)
+                    first_title = track.title
+                else:
+                    await player.queue.put_wait(track)
+                    queued += 1
+                    if len(added_titles) < 3:  # Guardamos solo los primeros 3 títulos para mostrar
+                        added_titles.append(track.title)
+        
+        # Cancelar desconexión automática al reproducir música
+        if ctx.guild:
+            self._cancel_empty_task(ctx.guild.id)
+        
+        # Mensajes de respuesta
         if first_title and queued == 0:
             emb = self._embed("Reproduciendo", f"▶️ **{first_title}**", discord.Color.green())
             await ctx.send(embed=emb)
         elif first_title and queued > 0:
-            emb = self._embed("Reproduciendo", f"▶️ **{first_title}**\n➕ Añadidas {queued} a la cola", discord.Color.green())
+            if is_playlist:
+                emb = self._embed("Playlist añadida", f"▶️ **{first_title}**\n➕ Añadidas {queued} canciones más a la cola", discord.Color.green())
+            else:
+                emb = self._embed("Reproduciendo", f"▶️ **{first_title}**\n➕ Añadidas {queued} a la cola", discord.Color.green())
             await ctx.send(embed=emb)
         elif queued > 0:
             # Ya había reproducción activa; reportamos lo añadido
@@ -261,8 +338,11 @@ class Music(commands.Cog):
                 emb = self._embed("Añadido a la cola", f"➕ **{added_titles[0]}**", discord.Color.blurple())
                 await ctx.send(embed=emb)
             else:
-                shown = added_titles[0]
-                emb = self._embed("Añadidas a la cola", f"➕ {queued} pistas. Primero: **{shown}**", discord.Color.blurple())
+                shown = added_titles[0] if added_titles else "canciones"
+                if is_playlist:
+                    emb = self._embed("Playlist añadida a la cola", f"➕ {queued} canciones. Primera: **{shown}**", discord.Color.blurple())
+                else:
+                    emb = self._embed("Añadidas a la cola", f"➕ {queued} pistas. Primera: **{shown}**", discord.Color.blurple())
                 await ctx.send(embed=emb)
         else:
             emb = self._embed("Sin resultados", "❌ No se encontraron resultados.", discord.Color.red())
@@ -602,6 +682,32 @@ class Music(commands.Cog):
         if hasattr(player, "queue") and player.queue and not player.queue.is_empty:
             nxt = player.queue.get()
             await player.play(nxt)
+        else:
+            # Si no hay más canciones, verificar si el canal está vacío
+            self._check_empty_channel(player)
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        """Detecta cuando alguien se une o sale de un canal de voz"""
+        # Ignorar actualizaciones del propio bot
+        if member.bot:
+            return
+        
+        guild = member.guild
+        player: wavelink.Player = guild.voice_client  # type: ignore
+        
+        if not player or not isinstance(player, wavelink.Player):
+            return
+        
+        # Si alguien se unió al canal del bot
+        if after.channel and after.channel.id == player.channel.id:
+            # Cancelar desconexión automática
+            self._cancel_empty_task(guild.id)
+        
+        # Si alguien salió del canal del bot
+        elif before.channel and before.channel.id == player.channel.id:
+            # Verificar si el canal quedó vacío
+            self._check_empty_channel(player)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Music(bot))
