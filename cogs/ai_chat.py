@@ -20,6 +20,20 @@ class AIChat(commands.Cog):
         # IDs específicos donde funciona el comando
         self.allowed_guild_id = 391755494978617344
         self.allowed_channel_id = 1266262036250103970
+        
+        # Cargar personalidad desde archivo
+        self.personality = self._load_personality()
+
+    def _load_personality(self) -> str:
+        """Carga la personalidad desde el archivo de configuración"""
+        try:
+            personality_path = os.path.join(os.path.dirname(__file__), "..", "data", "ai_personality.txt")
+            with open(personality_path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception as e:
+            print(f"[WARNING] No se pudo cargar ai_personality.txt: {e}")
+            # Personalidad por defecto si falla
+            return "Eres Sthashior, un asistente amigable y conversacional. Responde de manera breve y natural."
 
     async def _query_groq(self, text: str, user_id: int) -> str:
         """Consulta la API de Groq con Llama 3.1"""
@@ -31,9 +45,9 @@ class AIChat(commands.Cog):
             "Content-Type": "application/json"
         }
         
-        # Construir mensajes en formato OpenAI
+        # Usar personalidad cargada desde archivo
         messages = [
-            {"role": "system", "content": "Eres un asistente amigable y conversacional llamado Sthashior. Responde de manera breve y natural."}
+            {"role": "system", "content": self.personality}
         ]
         
         # Añadir historial si existe
