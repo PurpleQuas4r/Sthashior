@@ -11,7 +11,8 @@ class AIChat(commands.Cog):
         self.bot = bot
         self.hf_token = os.environ.get("HUGGINGFACE_TOKEN")
         # Usando IBM Granite - modelo pequeño y reciente (actualizado oct 2024)
-        self.api_url = "https://api-inference.huggingface.co/models/ibm-granite/granite-4.0-h-350m"
+        # NUEVA URL de Hugging Face (la antigua fue deprecada)
+        self.api_url = "https://router.huggingface.co/hf-inference/models/ibm-granite/granite-4.0-h-350m"
         # Historial de conversaciones por usuario (máximo 3 mensajes)
         self.conversation_history: Dict[int, List[str]] = {}
         self.max_history = 3
