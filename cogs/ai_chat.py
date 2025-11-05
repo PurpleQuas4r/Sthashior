@@ -10,9 +10,9 @@ class AIChat(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.hf_token = os.environ.get("HUGGINGFACE_TOKEN")
-        # Cambiado a BlenderBot por deprecación de DialoGPT
-        self.api_url = "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill"
-        # Historial de conversaciones por usuario (máximo 3 mensajes para BlenderBot)
+        # Usando Flan-T5 - modelo conversacional de Google (más estable)
+        self.api_url = "https://api-inference.huggingface.co/models/google/flan-t5-base"
+        # Historial de conversaciones por usuario (máximo 3 mensajes)
         self.conversation_history: Dict[int, List[str]] = {}
         self.max_history = 3
         
@@ -21,21 +21,34 @@ class AIChat(commands.Cog):
         self.allowed_channel_id = 1266262036250103970
 
     async def _query_huggingface(self, text: str, user_id: int) -> str:
-        """Consulta la API de Hugging Face con el modelo BlenderBot"""
+        """Consulta la API de Hugging Face con el modelo Flan-T5"""
         if not self.hf_token:
             return "❌ Token de Hugging Face no configurado."
         
         headers = {"Authorization": f"Bearer {self.hf_token}"}
         
-        # BlenderBot usa un formato más simple, solo el texto actual
+        # Flan-T5 funciona mejor con instrucciones claras
+        # Añadimos contexto si existe historial
+        history = self.conversation_history.get(user_id, [])
+        if history:
+            # Construir contexto de conversación
+            context = "Conversación previa:\n"
+            for i in range(0, len(history), 2):
+                if i < len(history):
+                    context += f"Usuario: {history[i]}\n"
+                if i + 1 < len(history):
+                    context += f"Asistente: {history[i+1]}\n"
+            prompt = f"{context}\nUsuario: {text}\nAsistente:"
+        else:
+            prompt = f"Responde de manera amigable y conversacional:\nUsuario: {text}\nAsistente:"
+        
         payload = {
-            "inputs": text,
+            "inputs": prompt,
             "parameters": {
-                "max_length": 150,
-                "min_length": 20,
-                "temperature": 0.7,
+                "max_new_tokens": 100,
+                "temperature": 0.8,
                 "top_p": 0.9,
-                "repetition_penalty": 1.2
+                "do_sample": True
             },
             "options": {
                 "wait_for_model": True,
@@ -62,29 +75,35 @@ class AIChat(commands.Cog):
                     
                     result = await response.json()
                     
-                    # BlenderBot retorna una lista con el texto generado
+                    # Flan-T5 retorna una lista con el texto generado
+                    response_text = ""
                     if isinstance(result, list) and len(result) > 0:
-                        # BlenderBot puede retornar el texto directamente o en generated_text
                         if isinstance(result[0], dict):
                             response_text = result[0].get("generated_text", "").strip()
                         else:
                             response_text = str(result[0]).strip()
-                        
+                    elif isinstance(result, dict):
+                        response_text = result.get("generated_text", "").strip()
+                    
+                    # Limpiar el prompt de la respuesta si está incluido
+                    if "Asistente:" in response_text:
+                        response_text = response_text.split("Asistente:")[-1].strip()
+                    
+                    if response_text:
                         # Actualizar historial
                         if user_id not in self.conversation_history:
                             self.conversation_history[user_id] = []
                         
                         self.conversation_history[user_id].append(text)
-                        if response_text:
-                            self.conversation_history[user_id].append(response_text)
+                        self.conversation_history[user_id].append(response_text)
                         
                         # Mantener solo los últimos mensajes
                         if len(self.conversation_history[user_id]) > self.max_history * 2:
                             self.conversation_history[user_id] = self.conversation_history[user_id][-(self.max_history * 2):]
                         
-                        return response_text if response_text else "🤔 No tengo una respuesta para eso..."
+                        return response_text
                     
-                    return "❌ No pude generar una respuesta."
+                    return "🤔 No tengo una respuesta para eso..."
         
         except asyncio.TimeoutError:
             return "⏱️ La IA tardó demasiado en responder. Intenta de nuevo."
@@ -93,7 +112,7 @@ class AIChat(commands.Cog):
 
     @commands.command(name="ia")
     async def ia_chat(self, ctx: commands.Context, *, texto: str = None):
-        """Chatea con la IA usando BlenderBot"""
+        """Chatea con la IA usando Google Flan-T5"""
         # Verificar que esté en el servidor y canal correcto
         if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
             return

@@ -33,7 +33,7 @@ HELP_IA = (
     "🌸 #ia <mensaje> → Chatea conmigo usando IA. Mantengo el contexto de la conversación (｡◕‿◕｡).\n\n"
     "🌸 #ia_reset → Reinicia el historial de conversación para empezar de nuevo ♻️.\n\n"
     "💡 Nota: Solo funciona en el canal designado del servidor.\n\n"
-    "🌸 Powered by Facebook BlenderBot-400M ✨"
+    "🌸 Powered by Google Flan-T5 ✨"
 )
 
 HELP_GENERAL = (
