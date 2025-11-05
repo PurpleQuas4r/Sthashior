@@ -140,14 +140,8 @@ class AIChat(commands.Cog):
         async with ctx.typing():
             response = await self._query_groq(texto, ctx.author.id)
         
-        # Enviar respuesta
-        embed = discord.Embed(
-            title="🤖 Sthashior IA",
-            description=response,
-            color=discord.Color.purple()
-        )
-        embed.set_footer(text=f"Conversación con {ctx.author.display_name}")
-        await ctx.send(embed=embed)
+        # Enviar respuesta sin embed
+        await ctx.send(f"{response}\n-# Conversación con {ctx.author.display_name}")
 
     @commands.command(name="ia_reset")
     async def ia_reset(self, ctx: commands.Context):
