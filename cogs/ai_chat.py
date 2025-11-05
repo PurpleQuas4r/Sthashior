@@ -10,8 +10,8 @@ class AIChat(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.hf_token = os.environ.get("HUGGINGFACE_TOKEN")
-        # Usando Mistral-7B-Instruct - modelo conversacional de última generación
-        self.api_url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+        # Usando TinyLlama - modelo pequeño disponible en API gratuita
+        self.api_url = "https://api-inference.huggingface.co/models/TinyLlama/TinyLlama-1.1B-Chat-v1.0"
         # Historial de conversaciones por usuario (máximo 3 mensajes)
         self.conversation_history: Dict[int, List[str]] = {}
         self.max_history = 3
@@ -21,36 +21,22 @@ class AIChat(commands.Cog):
         self.allowed_channel_id = 1266262036250103970
 
     async def _query_huggingface(self, text: str, user_id: int) -> str:
-        """Consulta la API de Hugging Face con el modelo Mistral"""
+        """Consulta la API de Hugging Face con el modelo TinyLlama"""
         if not self.hf_token:
             return "❌ Token de Hugging Face no configurado."
         
         headers = {"Authorization": f"Bearer {self.hf_token}"}
         
-        # Mistral usa formato de chat con instrucciones
-        # Formato: [INST] instrucción [/INST]
-        history = self.conversation_history.get(user_id, [])
-        if history:
-            # Construir contexto de conversación
-            conversation = ""
-            for i in range(0, len(history), 2):
-                if i < len(history):
-                    conversation += f"[INST] {history[i]} [/INST] "
-                if i + 1 < len(history):
-                    conversation += f"{history[i+1]} "
-            prompt = f"{conversation}[INST] {text} [/INST]"
-        else:
-            prompt = f"[INST] Eres un asistente amigable y conversacional. Responde de manera natural y breve. {text} [/INST]"
+        # TinyLlama usa formato simple
+        prompt = f"Responde de manera amigable y breve: {text}"
         
         payload = {
             "inputs": prompt,
             "parameters": {
-                "max_new_tokens": 150,
-                "temperature": 0.7,
-                "top_p": 0.95,
-                "repetition_penalty": 1.1,
-                "do_sample": True,
-                "return_full_text": False
+                "max_new_tokens": 100,
+                "temperature": 0.8,
+                "top_p": 0.9,
+                "do_sample": True
             },
             "options": {
                 "wait_for_model": True,
@@ -77,7 +63,7 @@ class AIChat(commands.Cog):
                     
                     result = await response.json()
                     
-                    # Mistral retorna una lista con el texto generado
+                    # TinyLlama retorna una lista con el texto generado
                     response_text = ""
                     if isinstance(result, list) and len(result) > 0:
                         if isinstance(result[0], dict):
@@ -87,11 +73,9 @@ class AIChat(commands.Cog):
                     elif isinstance(result, dict):
                         response_text = result.get("generated_text", "").strip()
                     
-                    # Limpiar marcadores de formato si están presentes
-                    if "[/INST]" in response_text:
-                        response_text = response_text.split("[/INST]")[-1].strip()
-                    if "[INST]" in response_text:
-                        response_text = response_text.split("[INST]")[0].strip()
+                    # Limpiar el prompt de la respuesta si está incluido
+                    if text in response_text:
+                        response_text = response_text.replace(text, "").strip()
                     
                     if response_text:
                         # Actualizar historial
@@ -116,7 +100,7 @@ class AIChat(commands.Cog):
 
     @commands.command(name="ia")
     async def ia_chat(self, ctx: commands.Context, *, texto: str = None):
-        """Chatea con la IA usando Mistral-7B-Instruct"""
+        """Chatea con la IA usando TinyLlama"""
         # Verificar que esté en el servidor y canal correcto
         if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
             return
