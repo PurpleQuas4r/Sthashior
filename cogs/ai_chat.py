@@ -9,11 +9,10 @@ from typing import Dict, List
 class AIChat(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.hf_token = os.environ.get("HUGGINGFACE_TOKEN")
-        # Usando IBM Granite - modelo pequeño y reciente (actualizado oct 2024)
-        # Formato de la nueva API de Hugging Face
-        self.model_id = "ibm-granite/granite-4.0-h-350m"
-        self.api_url = f"https://api-inference.huggingface.co/models/{self.model_id}"
+        # Cambiando a Groq - API gratuita con modelos rápidos
+        self.groq_api_key = os.environ.get("GROQ_API_KEY")
+        self.api_url = "https://api.groq.com/openai/v1/chat/completions"
+        self.model = "llama-3.1-8b-instant"  # Modelo rápido y gratuito
         # Historial de conversaciones por usuario (máximo 3 mensajes)
         self.conversation_history: Dict[int, List[str]] = {}
         self.max_history = 3
@@ -22,32 +21,38 @@ class AIChat(commands.Cog):
         self.allowed_guild_id = 391755494978617344
         self.allowed_channel_id = 1266262036250103970
 
-    async def _query_huggingface(self, text: str, user_id: int) -> str:
-        """Consulta la API de Hugging Face con el modelo IBM Granite"""
-        if not self.hf_token:
-            return "❌ Token de Hugging Face no configurado."
+    async def _query_groq(self, text: str, user_id: int) -> str:
+        """Consulta la API de Groq con Llama 3.1"""
+        if not self.groq_api_key:
+            return "❌ API Key de Groq no configurada. Obtén una gratis en: https://console.groq.com"
         
         headers = {
-            "Authorization": f"Bearer {self.hf_token}",
-            "Content-Type": "application/json",
-            "x-use-cache": "false"
+            "Authorization": f"Bearer {self.groq_api_key}",
+            "Content-Type": "application/json"
         }
         
-        # TinyLlama usa formato simple
-        prompt = f"Responde de manera amigable y breve: {text}"
+        # Construir mensajes en formato OpenAI
+        messages = [
+            {"role": "system", "content": "Eres un asistente amigable y conversacional llamado Sthashior. Responde de manera breve y natural."}
+        ]
+        
+        # Añadir historial si existe
+        history = self.conversation_history.get(user_id, [])
+        for i in range(0, len(history), 2):
+            if i < len(history):
+                messages.append({"role": "user", "content": history[i]})
+            if i + 1 < len(history):
+                messages.append({"role": "assistant", "content": history[i+1]})
+        
+        # Añadir mensaje actual
+        messages.append({"role": "user", "content": text})
         
         payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 100,
-                "temperature": 0.8,
-                "top_p": 0.9,
-                "do_sample": True
-            },
-            "options": {
-                "wait_for_model": True,
-                "use_cache": False
-            }
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 150,
+            "top_p": 0.9
         }
         
         try:
@@ -59,88 +64,43 @@ class AIChat(commands.Cog):
                     print(f"[DEBUG] Status Code: {response.status}")
                     print(f"[DEBUG] Headers: {dict(response.headers)}")
                     
-                    if response.status == 503:
-                        error_detail = await response.text()
-                        print(f"[DEBUG] 503 Error: {error_detail}")
-                        return "⏳ El modelo se está cargando, intenta de nuevo en unos segundos..."
-                    
                     if response.status == 401:
                         error_detail = await response.text()
                         print(f"[DEBUG] 401 Error: {error_detail}")
-                        return "❌ Token de Hugging Face inválido."
+                        return "❌ API Key de Groq inválida. Verifica tu clave en https://console.groq.com"
                     
-                    if response.status == 410:
+                    if response.status == 429:
                         error_detail = await response.text()
-                        print(f"[DEBUG] 410 Error: {error_detail}")
-                        # Intentar con la URL alternativa si la antigua falla
-                        alt_url = f"https://huggingface.co/api/inference/models/{self.model_id}"
-                        print(f"[DEBUG] Intentando URL alternativa: {alt_url}")
-                        async with session.post(alt_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=45)) as alt_response:
-                            if alt_response.status == 200:
-                                result = await alt_response.json()
-                                print(f"[DEBUG] ¡Éxito con URL alternativa!")
-                                # Procesar respuesta (código duplicado por simplicidad)
-                                response_text = ""
-                                if isinstance(result, list) and len(result) > 0:
-                                    if isinstance(result[0], dict):
-                                        response_text = result[0].get("generated_text", "").strip()
-                                    else:
-                                        response_text = str(result[0]).strip()
-                                elif isinstance(result, dict):
-                                    response_text = result.get("generated_text", "").strip()
-                                
-                                if text in response_text:
-                                    response_text = response_text.replace(text, "").strip()
-                                
-                                if response_text:
-                                    if user_id not in self.conversation_history:
-                                        self.conversation_history[user_id] = []
-                                    self.conversation_history[user_id].append(text)
-                                    self.conversation_history[user_id].append(response_text)
-                                    if len(self.conversation_history[user_id]) > self.max_history * 2:
-                                        self.conversation_history[user_id] = self.conversation_history[user_id][-(self.max_history * 2):]
-                                    return response_text
-                            else:
-                                print(f"[DEBUG] URL alternativa también falló: {alt_response.status}")
-                        return f"❌ API de Hugging Face no disponible. La API antigua fue deprecada y la nueva aún no está accesible."
+                        print(f"[DEBUG] 429 Error: {error_detail}")
+                        return "⏳ Límite de rate alcanzado. Espera un momento e intenta de nuevo."
                     
                     if response.status != 200:
                         error_text = await response.text()
                         print(f"[DEBUG] Error {response.status}: {error_text}")
-                        return f"❌ Error {response.status}: {error_text[:100]}"
+                        return f"❌ Error {response.status}: {error_text[:150]}"
                     
                     result = await response.json()
-                    
-                    # Granite retorna una lista con el texto generado
                     print(f"[DEBUG] Response JSON: {result}")
-                    response_text = ""
-                    if isinstance(result, list) and len(result) > 0:
-                        if isinstance(result[0], dict):
-                            response_text = result[0].get("generated_text", "").strip()
-                        else:
-                            response_text = str(result[0]).strip()
-                    elif isinstance(result, dict):
-                        response_text = result.get("generated_text", "").strip()
                     
-                    # Limpiar el prompt de la respuesta si está incluido
-                    if text in response_text:
-                        response_text = response_text.replace(text, "").strip()
+                    # Groq usa formato OpenAI
+                    if "choices" in result and len(result["choices"]) > 0:
+                        response_text = result["choices"][0]["message"]["content"].strip()
+                        
+                        if response_text:
+                            # Actualizar historial
+                            if user_id not in self.conversation_history:
+                                self.conversation_history[user_id] = []
+                            
+                            self.conversation_history[user_id].append(text)
+                            self.conversation_history[user_id].append(response_text)
+                            
+                            # Mantener solo los últimos mensajes
+                            if len(self.conversation_history[user_id]) > self.max_history * 2:
+                                self.conversation_history[user_id] = self.conversation_history[user_id][-(self.max_history * 2):]
+                            
+                            return response_text
                     
-                    if response_text:
-                        # Actualizar historial
-                        if user_id not in self.conversation_history:
-                            self.conversation_history[user_id] = []
-                        
-                        self.conversation_history[user_id].append(text)
-                        self.conversation_history[user_id].append(response_text)
-                        
-                        # Mantener solo los últimos mensajes
-                        if len(self.conversation_history[user_id]) > self.max_history * 2:
-                            self.conversation_history[user_id] = self.conversation_history[user_id][-(self.max_history * 2):]
-                        
-                        return response_text
-                    
-                    return "🤔 No tengo una respuesta para eso..."
+                    return "🤔 No pude generar una respuesta..."
         
         except asyncio.TimeoutError:
             return "⏱️ La IA tardó demasiado en responder. Intenta de nuevo."
@@ -149,7 +109,7 @@ class AIChat(commands.Cog):
 
     @commands.command(name="ia")
     async def ia_chat(self, ctx: commands.Context, *, texto: str = None):
-        """Chatea con la IA usando IBM Granite"""
+        """Chatea con la IA usando Groq (Llama 3.1)"""
         # Verificar que esté en el servidor y canal correcto
         if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
             return
@@ -164,7 +124,7 @@ class AIChat(commands.Cog):
         
         # Mostrar indicador de escritura
         async with ctx.typing():
-            response = await self._query_huggingface(texto, ctx.author.id)
+            response = await self._query_groq(texto, ctx.author.id)
         
         # Enviar respuesta
         embed = discord.Embed(
