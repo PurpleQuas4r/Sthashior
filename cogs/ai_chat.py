@@ -10,46 +10,42 @@ class AIChat(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.hf_token = os.environ.get("HUGGINGFACE_TOKEN")
-        self.api_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-small"
-        # Historial de conversaciones por usuario (máximo 5 mensajes)
+        # Cambiado a BlenderBot por deprecación de DialoGPT
+        self.api_url = "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill"
+        # Historial de conversaciones por usuario (máximo 3 mensajes para BlenderBot)
         self.conversation_history: Dict[int, List[str]] = {}
-        self.max_history = 5
+        self.max_history = 3
         
         # IDs específicos donde funciona el comando
         self.allowed_guild_id = 391755494978617344
         self.allowed_channel_id = 1266262036250103970
 
     async def _query_huggingface(self, text: str, user_id: int) -> str:
-        """Consulta la API de Hugging Face con el modelo DialoGPT"""
+        """Consulta la API de Hugging Face con el modelo BlenderBot"""
         if not self.hf_token:
             return "❌ Token de Hugging Face no configurado."
         
         headers = {"Authorization": f"Bearer {self.hf_token}"}
         
-        # Obtener historial del usuario
-        history = self.conversation_history.get(user_id, [])
-        
-        # Construir el contexto de conversación
-        # DialoGPT funciona mejor con el historial completo
-        conversation_text = " ".join(history + [text]) if history else text
-        
+        # BlenderBot usa un formato más simple, solo el texto actual
         payload = {
-            "inputs": conversation_text,
+            "inputs": text,
             "parameters": {
-                "max_length": 100,
-                "min_length": 10,
-                "temperature": 0.9,
+                "max_length": 150,
+                "min_length": 20,
+                "temperature": 0.7,
                 "top_p": 0.9,
-                "do_sample": True
+                "repetition_penalty": 1.2
             },
             "options": {
-                "wait_for_model": True
+                "wait_for_model": True,
+                "use_cache": False
             }
         }
         
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(self.api_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                async with session.post(self.api_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=45)) as response:
                     if response.status == 503:
                         # Modelo cargándose
                         return "⏳ El modelo se está cargando, intenta de nuevo en unos segundos..."
@@ -57,28 +53,30 @@ class AIChat(commands.Cog):
                     if response.status == 401:
                         return "❌ Token de Hugging Face inválido."
                     
+                    if response.status == 410:
+                        return "❌ El modelo no está disponible. Contacta al administrador."
+                    
                     if response.status != 200:
                         error_text = await response.text()
                         return f"❌ Error al conectar con la IA: {response.status}"
                     
                     result = await response.json()
                     
-                    # DialoGPT retorna una lista con el texto generado
+                    # BlenderBot retorna una lista con el texto generado
                     if isinstance(result, list) and len(result) > 0:
-                        generated_text = result[0].get("generated_text", "")
-                        
-                        # Extraer solo la respuesta nueva (después del input)
-                        if conversation_text in generated_text:
-                            response_text = generated_text[len(conversation_text):].strip()
+                        # BlenderBot puede retornar el texto directamente o en generated_text
+                        if isinstance(result[0], dict):
+                            response_text = result[0].get("generated_text", "").strip()
                         else:
-                            response_text = generated_text.strip()
+                            response_text = str(result[0]).strip()
                         
                         # Actualizar historial
                         if user_id not in self.conversation_history:
                             self.conversation_history[user_id] = []
                         
                         self.conversation_history[user_id].append(text)
-                        self.conversation_history[user_id].append(response_text)
+                        if response_text:
+                            self.conversation_history[user_id].append(response_text)
                         
                         # Mantener solo los últimos mensajes
                         if len(self.conversation_history[user_id]) > self.max_history * 2:
@@ -95,7 +93,7 @@ class AIChat(commands.Cog):
 
     @commands.command(name="ia")
     async def ia_chat(self, ctx: commands.Context, *, texto: str = None):
-        """Chatea con la IA usando DialoGPT"""
+        """Chatea con la IA usando BlenderBot"""
         # Verificar que esté en el servidor y canal correcto
         if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
             return
