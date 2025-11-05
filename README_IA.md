@@ -2,7 +2,9 @@
 
 ## ✨ Nueva Funcionalidad: IA Conversacional
 
-Sthashior ahora puede mantener conversaciones usando **Microsoft DialoGPT-small** a través de Hugging Face.
+Sthashior ahora puede mantener conversaciones usando **Facebook BlenderBot-400M-distill** a través de Hugging Face.
+
+> **Nota**: Anteriormente usábamos DialoGPT-small, pero fue deprecado por Microsoft. BlenderBot ofrece mejor soporte multiidioma y respuestas más naturales.
 
 ---
 
@@ -45,9 +47,10 @@ Inicia o continúa una conversación con la IA.
 ```
 
 **Características:**
-- Mantiene contexto de los últimos 5 mensajes
+- Mantiene contexto de los últimos 3 mensajes
 - Cada usuario tiene su propio historial
-- Respuestas personalizadas
+- Respuestas personalizadas y naturales
+- Mejor soporte para español
 
 ### `#ia_reset`
 Reinicia tu historial de conversación.
@@ -61,31 +64,28 @@ Reinicia tu historial de conversación.
 
 ## 🧠 Modelo de IA
 
-**Modelo**: `microsoft/DialoGPT-small`
+**Modelo Actual**: `facebook/blenderbot-400M-distill`
 
 **Características:**
 - ✅ Gratuito
 - ✅ Sin límites de uso
-- ✅ Ligero y rápido
-- ✅ Conversaciones naturales
-- ✅ Mantiene contexto
+- ✅ Optimizado para conversaciones
+- ✅ Excelente soporte multiidioma (español incluido)
+- ✅ Respuestas más naturales y contextuales
+- ✅ Mantiene contexto de conversación
 
 **Parámetros configurados:**
-- `max_length`: 100 tokens
-- `min_length`: 10 tokens
-- `temperature`: 0.9 (creatividad)
+- `max_length`: 150 tokens
+- `min_length`: 20 tokens
+- `temperature`: 0.7 (balance creatividad/coherencia)
 - `top_p`: 0.9 (diversidad)
+- `repetition_penalty`: 1.2 (evita repeticiones)
 
----
-
-## 🔄 Modelo Alternativo
-
-Si DialoGPT no está disponible, puedes cambiar a **BlenderBot**:
-
-En `cogs/ai_chat.py`, línea 13:
-```python
-self.api_url = "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill"
-```
+**¿Por qué BlenderBot?**
+- DialoGPT fue deprecado por Microsoft (error 410)
+- BlenderBot ofrece mejor rendimiento en español
+- Respuestas más largas y detalladas
+- Mejor comprensión del contexto
 
 ---
 
@@ -129,9 +129,15 @@ Bot: ✅ Historial de conversación reiniciado.
 - Espera 20-30 segundos
 - Intenta de nuevo
 
-### Respuestas en inglés
-- DialoGPT está entrenado principalmente en inglés
-- Para mejor soporte en español, considera usar BlenderBot
+### Error 410: "El modelo no está disponible"
+- Este error indicaba que DialoGPT fue deprecado
+- Ya fue solucionado cambiando a BlenderBot
+- Si persiste, contacta al administrador
+
+### Respuestas de baja calidad
+- BlenderBot funciona mejor con preguntas claras y específicas
+- Usa `#ia_reset` si la conversación pierde coherencia
+- El modelo mejora con contexto apropiado
 
 ---
 
@@ -139,6 +145,7 @@ Bot: ✅ Historial de conversación reiniciado.
 
 **Archivo**: `cogs/ai_chat.py`  
 **API**: Hugging Face Inference API  
-**Timeout**: 30 segundos  
-**Historial máximo**: 5 mensajes por usuario  
+**Modelo**: facebook/blenderbot-400M-distill  
+**Timeout**: 45 segundos  
+**Historial máximo**: 3 mensajes por usuario  
 **Restricciones**: Solo servidor y canal específicos
