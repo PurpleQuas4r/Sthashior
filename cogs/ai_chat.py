@@ -11,8 +11,9 @@ class AIChat(commands.Cog):
         self.bot = bot
         self.hf_token = os.environ.get("HUGGINGFACE_TOKEN")
         # Usando IBM Granite - modelo pequeño y reciente (actualizado oct 2024)
-        # NUEVA URL de Hugging Face (la antigua fue deprecada)
-        self.api_url = "https://router.huggingface.co/hf-inference/models/ibm-granite/granite-4.0-h-350m"
+        # NUEVA URL de Hugging Face Inference API
+        self.api_url = "https://api-inference.huggingface.co/models/ibm-granite/granite-4.0-h-350m"
+        # Nota: Usaremos headers especiales para la nueva API
         # Historial de conversaciones por usuario (máximo 3 mensajes)
         self.conversation_history: Dict[int, List[str]] = {}
         self.max_history = 3
@@ -26,7 +27,11 @@ class AIChat(commands.Cog):
         if not self.hf_token:
             return "❌ Token de Hugging Face no configurado."
         
-        headers = {"Authorization": f"Bearer {self.hf_token}"}
+        headers = {
+            "Authorization": f"Bearer {self.hf_token}",
+            "Content-Type": "application/json",
+            "x-use-cache": "false"
+        }
         
         # TinyLlama usa formato simple
         prompt = f"Responde de manera amigable y breve: {text}"
@@ -47,6 +52,8 @@ class AIChat(commands.Cog):
         
         try:
             async with aiohttp.ClientSession() as session:
+                print(f"[DEBUG] URL: {self.api_url}")
+                print(f"[DEBUG] Payload: {payload}")
                 async with session.post(self.api_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=45)) as response:
                     # Logs de depuración
                     print(f"[DEBUG] Status Code: {response.status}")
