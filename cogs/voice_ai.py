@@ -5,6 +5,8 @@ import asyncio
 from gtts import gTTS
 import tempfile
 from pathlib import Path
+import aiohttp
+from typing import Dict, List
 
 
 class VoiceAI(commands.Cog):
@@ -14,16 +16,113 @@ class VoiceAI(commands.Cog):
         self.allowed_guild_id = 391755494978617344
         self.temp_dir = Path(tempfile.gettempdir()) / "sthashior_tts"
         self.temp_dir.mkdir(exist_ok=True)
+        
+        # Configuración de IA (igual que ai_chat.py)
+        self.groq_api_key = os.environ.get("GROQ_API_KEY")
+        self.api_url = "https://api.groq.com/openai/v1/chat/completions"
+        self.model = "llama-3.1-8b-instant"
+        
+        # Historial de conversación por voz (por usuario)
+        self.voice_conversation_history: Dict[int, List[str]] = {}
+        self.max_history = 2  # Solo 2 mensajes de historial para respuestas rápidas
+        
+        # Cargar personalidad desde archivo
+        self.personality = self._load_personality()
+
+    def _load_personality(self) -> str:
+        """Carga la personalidad desde el archivo de configuración"""
+        try:
+            personality_path = os.path.join(os.path.dirname(__file__), "..", "data", "ai_personality.txt")
+            with open(personality_path, "r", encoding="utf-8") as f:
+                base_personality = f.read().strip()
+            
+            # Añadir instrucciones específicas para voz
+            voice_instructions = """
+
+INSTRUCCIONES ESPECIALES PARA VOZ:
+- Responde en MÁXIMO 2-3 oraciones (para que no dure más de 10 segundos)
+- Sé directa y concisa
+- No uses emoticones (se escucharán raros en voz)
+- Responde preguntas tontas con humor
+- Mantén el tono casual y amigable"""
+            
+            return base_personality + voice_instructions
+        except Exception as e:
+            print(f"[WARNING] No se pudo cargar ai_personality.txt: {e}")
+            return "Eres Sthashior, un asistente amigable. Responde de manera muy breve y natural, máximo 2-3 oraciones."
+
+    async def _query_groq_voice(self, text: str, user_id: int) -> str:
+        """Consulta la API de Groq para obtener respuesta de IA (versión voz)"""
+        if not self.groq_api_key:
+            return "No tengo configurada mi clave de IA."
+        
+        headers = {
+            "Authorization": f"Bearer {self.groq_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Construir mensajes con personalidad
+        messages = [
+            {"role": "system", "content": self.personality}
+        ]
+        
+        # Añadir historial si existe (solo últimos 2 mensajes)
+        history = self.voice_conversation_history.get(user_id, [])
+        for i in range(0, len(history), 2):
+            if i < len(history):
+                messages.append({"role": "user", "content": history[i]})
+            if i + 1 < len(history):
+                messages.append({"role": "assistant", "content": history[i+1]})
+        
+        # Añadir mensaje actual
+        messages.append({"role": "user", "content": text})
+        
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 80,  # Límite bajo para respuestas cortas
+            "top_p": 0.9
+        }
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.api_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status != 200:
+                        return "Lo siento, tuve un problema al pensar en una respuesta."
+                    
+                    result = await response.json()
+                    
+                    if "choices" in result and len(result["choices"]) > 0:
+                        response_text = result["choices"][0]["message"]["content"].strip()
+                        
+                        # Actualizar historial
+                        if user_id not in self.voice_conversation_history:
+                            self.voice_conversation_history[user_id] = []
+                        
+                        self.voice_conversation_history[user_id].append(text)
+                        self.voice_conversation_history[user_id].append(response_text)
+                        
+                        # Mantener solo últimos mensajes
+                        if len(self.voice_conversation_history[user_id]) > self.max_history * 2:
+                            self.voice_conversation_history[user_id] = self.voice_conversation_history[user_id][-(self.max_history * 2):]
+                        
+                        return response_text
+                    
+                    return "No se me ocurre qué decir."
+        except Exception as e:
+            print(f"[ERROR] Groq Voice: {e}")
+            return "Tuve un error al procesar tu mensaje."
 
     @commands.command(name="voz")
     async def voice_tts(self, ctx: commands.Context, *, mensaje: str = None):
-        """Reproduce un mensaje en el canal de voz usando TTS"""
+        """Habla con la IA por voz - El bot responde usando IA y reproduce en voz"""
         # Verificar que esté en el servidor correcto
         if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
             return
         
         if not mensaje:
-            await ctx.send("❌ Debes escribir un mensaje. Uso: `#voz <mensaje>`")
+            await ctx.send("❌ Debes escribir un mensaje. Uso: `#voz <pregunta>`")
             return
         
         # Verificar que el usuario esté en un canal de voz
@@ -44,13 +143,20 @@ class VoiceAI(commands.Cog):
             
             # Verificar si ya está reproduciendo algo
             if voice_client.is_playing():
-                await ctx.send("⏳ Espera a que termine el mensaje anterior...")
+                await ctx.send("⏳ Espera a que termine de hablar...")
                 return
             
-            await ctx.send(f"🎤 Reproduciendo mensaje en voz...")
+            # Mostrar que está pensando
+            thinking_msg = await ctx.send("🤔 Pensando...")
+            
+            # Obtener respuesta de IA
+            ai_response = await self._query_groq_voice(mensaje, ctx.author.id)
+            
+            # Actualizar mensaje
+            await thinking_msg.edit(content=f"🎤 **Sthashior:** {ai_response}\n-# Conversación con {ctx.author.display_name}")
             
             # Generar audio TTS
-            audio_file = await self._generate_tts(mensaje)
+            audio_file = await self._generate_tts(ai_response)
             
             # Reproducir el audio
             voice_client.play(
@@ -64,8 +170,8 @@ class VoiceAI(commands.Cog):
         except discord.ClientException as e:
             await ctx.send(f"❌ Error al conectar al canal de voz: {str(e)}")
         except Exception as e:
-            await ctx.send(f"❌ Error al generar voz: {str(e)}")
-            print(f"[ERROR] Voice TTS: {e}")
+            await ctx.send(f"❌ Error: {str(e)}")
+            print(f"[ERROR] Voice AI: {e}")
 
     async def _generate_tts(self, text: str) -> Path:
         """Genera un archivo de audio TTS usando Google TTS"""
@@ -108,6 +214,18 @@ class VoiceAI(commands.Cog):
             await ctx.send("🔇 Desconectado del canal de voz.")
         else:
             await ctx.send("ℹ️ No estoy conectado a ningún canal de voz.")
+
+    @commands.command(name="voz_reset")
+    async def voice_reset(self, ctx: commands.Context):
+        """Reinicia el historial de conversación por voz"""
+        if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
+            return
+        
+        if ctx.author.id in self.voice_conversation_history:
+            del self.voice_conversation_history[ctx.author.id]
+            await ctx.send("✅ Historial de conversación por voz reiniciado.")
+        else:
+            await ctx.send("ℹ️ No tienes historial de conversación por voz.")
 
 
 async def setup(bot: commands.Bot):
