@@ -29,12 +29,15 @@ HELP_IA = (
     "🌸 Comandos disponibles — IA Conversacional 🤖\n\n"
     "Konnichiwa~ (◕‿◕✿)\n"
     "¡Ahora puedo conversar contigo usando inteligencia artificial!\n\n"
-    "🤖 Comandos de IA\n\n"
+    "🤖 Comandos de IA (Chat)\n\n"
     "🌸 #ia <mensaje> → Chatea conmigo usando IA. Mantengo el contexto de la conversación (｡◕‿◕｡).\n\n"
     "🌸 #ia_reset → Reinicia el historial de conversación para empezar de nuevo ♻️.\n\n"
     "🧹 #ia_clear → Limpia los últimos 50 mensajes del canal (Solo admin).\n\n"
-    "💡 Nota: Solo funciona en el canal designado del servidor.\n\n"
-    "🌸 Powered by Groq (Llama 3.1) ✨"
+    "🎤 Comandos de Voz\n\n"
+    "🌸 #voz <mensaje> → Reproduzco el mensaje en tu canal de voz usando TTS 🔊.\n\n"
+    "🌸 #voz_stop → Me desconecto del canal de voz 🔇.\n\n"
+    "💡 Nota: Comandos de chat solo funcionan en el canal designado.\n\n"
+    "🌸 Powered by Groq (Llama 3.1) & Google TTS ✨"
 )
 
 HELP_GENERAL = (

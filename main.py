@@ -17,6 +17,7 @@ class SthashiorBot(commands.Bot):
         await self.load_extension("cogs.help")
         await self.load_extension("cogs.datorandom")
         await self.load_extension("cogs.ai_chat")
+        await self.load_extension("cogs.voice_ai")
 
         # Inicia un pequeño servidor HTTP para mantener vivo en Replit/Render/Koyeb
         async def handle_root(request: web.Request) -> web.Response:
