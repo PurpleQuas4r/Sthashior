@@ -1,4 +1,4 @@
-run = "python main.py"
+run = "bash start_bot.sh"
 
 [nix]
 channel = "stable-24_05"
