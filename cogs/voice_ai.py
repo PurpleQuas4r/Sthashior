@@ -116,62 +116,27 @@ INSTRUCCIONES ESPECIALES PARA VOZ:
 
     @commands.command(name="voz")
     async def voice_tts(self, ctx: commands.Context, *, mensaje: str = None):
-        """Habla con la IA por voz - El bot responde usando IA y reproduce en voz"""
-        # Verificar que esté en el servidor correcto
-        if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
-            return
-        
-        if not mensaje:
-            await ctx.send("❌ Debes escribir un mensaje. Uso: `#voz <pregunta>`")
-            return
-        
-        # Verificar que el usuario esté en un canal de voz
-        if not ctx.author.voice:
-            await ctx.send("❌ Debes estar en un canal de voz para usar este comando.")
-            return
-        
-        # Obtener el canal de voz del usuario
-        voice_channel = ctx.author.voice.channel
-        
-        try:
-            # Conectar al canal de voz si no está conectado
-            voice_client = ctx.guild.voice_client
-            if voice_client is None:
-                voice_client = await voice_channel.connect()
-            elif voice_client.channel != voice_channel:
-                await voice_client.move_to(voice_channel)
-            
-            # Verificar si ya está reproduciendo algo
-            if voice_client.is_playing():
-                await ctx.send("⏳ Espera a que termine de hablar...")
-                return
-            
-            # Mostrar que está pensando
-            thinking_msg = await ctx.send("🤔 Pensando...")
-            
-            # Obtener respuesta de IA
-            ai_response = await self._query_groq_voice(mensaje, ctx.author.id)
-            
-            # Actualizar mensaje
-            await thinking_msg.edit(content=f"🎤 **Sthashior:** {ai_response}\n-# Conversación con {ctx.author.display_name}")
-            
-            # Generar audio TTS
-            audio_file = await self._generate_tts(ai_response)
-            
-            # Reproducir el audio
-            voice_client.play(
-                discord.FFmpegPCMAudio(str(audio_file)),
-                after=lambda e: asyncio.run_coroutine_threadsafe(
-                    self._cleanup_audio(audio_file, voice_client, ctx),
-                    self.bot.loop
-                )
-            )
-            
-        except discord.ClientException as e:
-            await ctx.send(f"❌ Error al conectar al canal de voz: {str(e)}")
-        except Exception as e:
-            await ctx.send(f"❌ Error: {str(e)}")
-            print(f"[ERROR] Voice AI: {e}")
+        """[EN DESARROLLO] Habla con la IA por voz"""
+        # Mensaje de desarrollo suspendido
+        embed = discord.Embed(
+            title="🚧 Función en Desarrollo",
+            description=(
+                "Lo siento mucho~ (｡•́︿•̀｡)\n\n"
+                "El comando de **voz con IA** está temporalmente suspendido debido a limitaciones técnicas de la plataforma de hosting actual.\n\n"
+                "**Problemas encontrados:**\n"
+                "• Replit no soporta conexiones UDP necesarias para voz\n"
+                "• Conflictos con librerías de audio (FFmpeg/libopus)\n"
+                "• Incompatibilidad con el sistema de voz de Discord\n\n"
+                "**Alternativas disponibles:**\n"
+                "🤖 `#ia <mensaje>` - Chatea conmigo por texto\n"
+                "🎵 `#play <canción>` - Reproduce música (funciona perfectamente)\n\n"
+                "**Estado:** En espera de migración a un hosting compatible (Railway/Render)\n\n"
+                "¡Gracias por tu comprensión! 🌸"
+            ),
+            color=discord.Color.orange()
+        )
+        embed.set_footer(text="Desarrollado por PurpleQuasar")
+        await ctx.send(embed=embed)
 
     async def _generate_tts(self, text: str) -> Path:
         """Genera un archivo de audio TTS usando Google TTS"""
@@ -202,30 +167,13 @@ INSTRUCCIONES ESPECIALES PARA VOZ:
 
     @commands.command(name="voz_stop")
     async def voice_stop(self, ctx: commands.Context):
-        """Detiene la reproducción de voz y desconecta el bot"""
-        if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
-            return
-        
-        voice_client = ctx.guild.voice_client
-        if voice_client:
-            if voice_client.is_playing():
-                voice_client.stop()
-            await voice_client.disconnect()
-            await ctx.send("🔇 Desconectado del canal de voz.")
-        else:
-            await ctx.send("ℹ️ No estoy conectado a ningún canal de voz.")
+        """[EN DESARROLLO] Detiene la reproducción de voz"""
+        await ctx.send("ℹ️ El comando `#voz` está temporalmente desactivado. Usa `#voz` para más información.")
 
     @commands.command(name="voz_reset")
     async def voice_reset(self, ctx: commands.Context):
-        """Reinicia el historial de conversación por voz"""
-        if ctx.guild is None or ctx.guild.id != self.allowed_guild_id:
-            return
-        
-        if ctx.author.id in self.voice_conversation_history:
-            del self.voice_conversation_history[ctx.author.id]
-            await ctx.send("✅ Historial de conversación por voz reiniciado.")
-        else:
-            await ctx.send("ℹ️ No tienes historial de conversación por voz.")
+        """[EN DESARROLLO] Reinicia el historial de conversación por voz"""
+        await ctx.send("ℹ️ El comando `#voz` está temporalmente desactivado. Usa `#voz` para más información.")
 
 
 async def setup(bot: commands.Bot):

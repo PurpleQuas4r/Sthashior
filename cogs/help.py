@@ -34,9 +34,9 @@ HELP_IA = (
     "🌸 #ia_reset → Reinicia el historial de conversación para empezar de nuevo ♻️.\n\n"
     "🧹 #ia_clear → Limpia los últimos 50 mensajes del canal (Solo admin).\n\n"
     "🎤 Comandos de Voz (IA)\n\n"
-    "🌸 #voz <pregunta> → Respondo tu pregunta con IA y la reproduzco en voz 🔊.\n\n"
-    "🌸 #voz_reset → Reinicia el historial de conversación por voz ♻️.\n\n"
-    "🌸 #voz_stop → Me desconecto del canal de voz 🔇.\n\n"
+    "🚧 #voz → [EN DESARROLLO] Función temporalmente suspendida.\n\n"
+    "ℹ️ Debido a limitaciones de Replit, la función de voz está en pausa.\n"
+    "Usa `#ia <mensaje>` para chatear por texto mientras tanto.\n\n"
     "💡 Nota: Comandos de chat solo funcionan en el canal designado.\n\n"
     "🌸 Powered by Groq (Llama 3.1) & Google TTS ✨"
 )
